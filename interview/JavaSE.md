@@ -72,3 +72,80 @@ Java反射机制的实现主要借助四个类：class、Constructor、Field、M
 1. ArrayList是实现了基于动态数组的数据结构，LinkedList基于链表的数据结构
 2. 对于随机访问get和set，ArrayList绝对优于LinkedList，因为LinkedList要移动指针
 3. 对于新增和删除操作，LinkedList比较有优势，因为ArrayList要移动数据。但若只对单条数据插入或者删除，ArrayList的速度反而优于LinkedList。但若是批量随机的插入删除数据，LinkedList的速度大大优于ArrayList，因为ArrayList每插入一条数据，要移动插入点及之后的数据
+
+## HashMap的底层源码以及数据结构
+
+HashMap的底层结构在jdk1.7中由数组+链表实现的，在jdk1.8中由数组+链表+红黑树实现的
+
+![](https://raw.githubusercontent.com/mao0824/pictureBed/master/img/20210828233707.png)
+
+![](https://raw.githubusercontent.com/mao0824/pictureBed/master/img/20210828233717.png)
+
+![](https://raw.githubusercontent.com/mao0824/pictureBed/master/img/20210828234023.png)
+
+![](https://raw.githubusercontent.com/mao0824/pictureBed/master/img/20210828234031.png)
+
+## HashMap和HashTable的区别
+
+1. 线程安全性不同
+
+   HashMap是线程不安全的，HashTable是线程安全的，内部的方法基本都经过Synchronize修饰的。在多线程并发的情况下，可以直接使用HashTable，但是使用HashTable是必须自己增加同步处理。
+
+2. 是否提供contains方法
+
+   HashMap中只有containsValue和containsKey方法；HashTable中有contains、containsValue和containsKey方法，contains和containsValue方法功能相同
+
+3. key和value是否允许null
+
+   HashTable中key和value都不允许出现null值，HashMap则可以
+
+4. 数组初始化和扩容机制
+
+   HashTable在不指定容量的情况下默认容量为11，HashMap默认容量为16，HashMap要求底层数组的容量一定是2的整数次幂。
+
+   HashTable扩容时，将容量变为原来的2倍加1，HashMap将容量变为原来的2倍
+
+##  HashTable和ConCurrentHashMap的区别
+
+HashTable里使用的是synchronized关键字，这其实是对对象加锁，锁住的都是对象整体，当Hashtable的大小增加到一定的时候，性能会急剧下降，因为迭代时需要被锁定很长的时间。
+
+ConCurrentHashMap是线程安全的HashMap的实现。ConcurrentHashMap算是对HashTable的优化，其构造函数如下，默认传入的是16，0.75，16。
+
+```java
+public ConcurrentHashMap(int paramInt1, float paramFloat, int paramInt2)  {    
+    //…  
+    int i = 0;    
+    int j = 1;    
+    while (j < paramInt2) {    
+      ++i;    
+      j <<= 1;    
+    }    
+    this.segmentShift = (32 - i);    
+    this.segmentMask = (j - 1);    
+    this.segments = Segment.newArray(j);    
+    //…  
+    int k = paramInt1 / j;    
+    if (k * j < paramInt1)    
+      ++k;    
+    int l = 1;    
+    while (l < k)    
+      l <<= 1;    
+    
+    for (int i1 = 0; i1 < this.segments.length; ++i1)    
+      this.segments[i1] = new Segment(l, paramFloat);    
+  }    
+  
+public V put(K paramK, V paramV)  {    
+    if (paramV == null)    
+      throw new NullPointerException();    
+    int i = hash(paramK.hashCode()); //这里的hash函数和HashMap中的不一样  
+    return this.segments[(i >>> this.segmentShift & this.segmentMask)].put(paramK, i, paramV, false);    
+}  
+```
+
+ConcurrentHashMap引入了**分割(Segment)**，上面代码中的最后一行其实就可以理解为把一个大的Map拆分成N个小的HashTable，在put方法中，会根据hash(paramK.hashCode())来决定具体存放进哪个Segment，如果查看Segment的put操作，我们会发现内部使用的同步机制是基于lock操作的，这样就可以对Map的一部分（Segment）进行上锁，这样影响的只是将要放入同一个Segment的元素的put操作，保证同步的时候，锁住的不是整个Map（HashTable就是这么做的），相对于HashTable提高了多线程环境下的性能，因此HashTable已经被淘汰了。
+
+##  HashMap和ConCurrentHashMap的对比
+
+1. ConcurrentHashMap对整个桶数组进行了分割分段(Segment)，然后在每一个分段上都用lock锁进行保护，相对于HashTable的syn关键字锁的粒度更精细了一些，并发性能更好，而HashMap没有锁机制，不是线程安全的。
+2. HashMap的键值对允许有null，但是ConCurrentHashMap都不允许。
