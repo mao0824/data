@@ -251,3 +251,271 @@ docker load [OPTIONS]
 
 ## Docker网络
 
+### 理解Docker0
+
+```shell
+# 查看所有网卡IP地址
+ip addr
+```
+
+![](https://raw.githubusercontent.com/mao0824/pictureBed/master/img/20210829120709.png)
+
+```shell
+# 测试
+docker run -d -P --name tomcat01 tomcat
+# 查看容器内部ip地址
+[root@zouma1 zouma]# docker exec -it tomcat01 ip addr
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    inet 127.0.0.1/8 scope host lo
+       valid_lft forever preferred_lft forever
+94: eth0@if95: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP group default 
+    link/ether 02:42:ac:11:00:04 brd ff:ff:ff:ff:ff:ff link-netnsid 0
+    inet 172.17.0.4/16 brd 172.17.255.255 scope global eth0
+       valid_lft forever preferred_lft foreve     
+# 启动容器之后，会得到一个 eth0@if95 ip地址，是docker分配的
+
+# linux能不能ping通容器内部？
+[root@zouma1 zouma]# ping 172.17.0.4
+PING 172.17.0.4 (172.17.0.4) 56(84) bytes of data.
+64 bytes from 172.17.0.4: icmp_seq=1 ttl=64 time=0.051 ms
+64 bytes from 172.17.0.4: icmp_seq=2 ttl=64 time=0.059 ms
+64 bytes from 172.17.0.4: icmp_seq=3 ttl=64 time=0.064 ms
+```
+
+我们每启动一个docker容器，docker就会给docker容器分配一个ip，我们只要安装了docker，就会有一个网卡docker0桥接模式，使用的技术是evth-pair技术。
+
+发现容器带来的网卡都是一对对的。容器内查看94: eth0@if95，宿主机上查看95: veth16a2a71@if94。
+
+**evth-pair 就是一对的虚拟设备接口，它们都是成对出现的，一段连着协议，一段彼此相连**，这是有这个特性，evth-pair充当一个桥梁。
+
+容器之间是可以相互ping通的，容器之间通过一个路由器，docker0。
+
+所有的容器不指定网络的情况下，都是docker0路由的，docker会给我们的容器分配一个默认的可用IP。
+
+Docker中所有的网络接口都是虚拟的，虚拟的转发效率高。
+
+### --link
+
+链接两个容器相互通信，可以通过名字来访问容器
+
+```shell
+[root@zouma1 zouma]# docker run -d -P --name tomcat02 --link tomcat01 tomcat
+29d0b6f2d62cb6a25157526b4d4ed51a339e6b4044cefde56c61f137d92ca8d0
+[root@zouma1 zouma]# docker exec -it tomcat02 ping tomcat01
+PING tomcat01 (172.17.0.4) 56(84) bytes of data.
+64 bytes from tomcat01 (172.17.0.4): icmp_seq=1 ttl=64 time=0.133 ms
+64 bytes from tomcat01 (172.17.0.4): icmp_seq=2 ttl=64 time=0.072 ms
+64 bytes from tomcat01 (172.17.0.4): icmp_seq=3 ttl=64 time=0.073 ms
+# 那反向可以ping通吗？答案是不可以 除非在tomcat01里面也配置一下
+```
+
+本质其实就是这个tomcat02在hosts文件里面配置了tomcat01的配置
+
+```shell
+[root@zouma1 zouma]# docker exec -it tomcat02 cat /etc/hosts
+127.0.0.1	localhost
+::1	localhost ip6-localhost ip6-loopback
+fe00::0	ip6-localnet
+ff00::0	ip6-mcastprefix
+ff02::1	ip6-allnodes
+ff02::2	ip6-allrouters
+172.17.0.4	tomcat01 87e419eed102
+172.17.0.5	29d0b6f2d62c
+```
+
+不推荐使用--link。docker0不支持容器名连接访问，我们需要自定义网络。
+
+### 自定义网络
+
+```shell
+# 查看所有的docker网络
+docker network ls [OPTIONS]
+# 可选项
+  -f, --filter filter   # Provide filter values (e.g. 'driver=bridge')
+      --format string   # Pretty-print networks using a Go template
+      --no-trunc        # Do not truncate the output
+  -q, --quiet           # Only display network IDs
+# 测试
+[root@zouma1 zouma]# docker network ls 
+NETWORK ID     NAME      DRIVER    SCOPE
+261351bf7a56   bridge    bridge    local
+b770eb69310b   host      host      local
+d85f23850873   none      null      local
+```
+
+**网络模式**
+
+bridge：  桥接模式（默认）
+
+none：  不配置网络
+
+host：和宿主机共享网络
+
+container：  容器内可以网络连通（用得少，局限性大）
+
+```shell
+docker network COMMAND
+# 指令
+  connect     # Connect a container to a network
+  create      # Create a network
+  disconnect  # Disconnect a container from a network
+  inspect     # Display detailed information on one or more networks
+  ls          # List networks
+  prune       # Remove all unused networks
+  rm          # Remove one or more networks
+```
+
+```shell
+# --net bridge是默认的，两个效果一样
+docker run -d -P --name tomcat01 tomcat
+docker run -d -P --name tomcat01 --net bridge tomcat
+
+# docker0特点：默认的，域名不能访问，--link可以打通连接但不建议使用，所以要自定义网络
+```
+
+```shell
+# 创建网卡
+docker network create [OPTIONS] NETWORK
+# 可选项
+      --attachable           # Enable manual container attachment
+      --aux-address map      # Auxiliary IPv4 or IPv6 addresses used by Network driver (default map[])
+      --config-from string   # The network from which to copy the configuration
+      --config-only          # Create a configuration only network
+  -d, --driver string        # Driver to manage the Network (default "bridge")管理网络的驱动程序
+      --gateway strings      # IPv4 or IPv6 Gateway(网关) for the master subnet
+      --ingress              # Create swarm routing-mesh network
+      --internal             # Restrict external access to the network
+      --ip-range strings     # Allocate container ip from a sub-range
+      --ipam-driver string   # IP Address Management Driver (default "default")
+      --ipam-opt map         # Set IPAM driver specific options (default map[])
+      --ipv6                 # Enable IPv6 networking
+      --label list           # Set metadata on a network
+  -o, --opt map              # Set driver specific options (default map[])设置驱动程序的特定选项
+      --scope string         # Control the network's scope
+      --subnet strings       # Subnet（子网） in CIDR format that represents a network segment
+      
+# 自定义网络
+# -d bridge
+# --subnet 192.168.0.0/16   192.168.0.2-192.168.255.255
+# --gateway 192.168.0.1
+docker network create -d bridge --subnet 192.168.0.0/16 --gateway 192.168.0.1 mynet
+# 测试
+[root@zouma1 zouma]# docker network create -d bridge --subnet 192.168.0.0/16 --gateway 192.168.0.1 mynet
+20c62ee2b6b1382a9f0ebb6c0e3c88ceae2ed5bf7cc9cf8b7cb95b360a060767
+[root@zouma1 zouma]# docker network ls
+NETWORK ID     NAME      DRIVER    SCOPE
+261351bf7a56   bridge    bridge    local
+b770eb69310b   host      host      local
+20c62ee2b6b1   mynet     bridge    local
+d85f23850873   none      null      local
+```
+
+使用自定义网络运行容器测试
+
+```shell
+docker run -d -P --name tomcat-net-01 --net mynet tomcat
+docker run -d -P --name tomcat-net-02 --net mynet tomcat
+docker network inspect mynet
+[
+    {
+        "Name": "mynet",
+        "Id": "20c62ee2b6b1382a9f0ebb6c0e3c88ceae2ed5bf7cc9cf8b7cb95b360a060767",
+        "Created": "2021-08-29T18:18:12.824434229+08:00",
+        "Scope": "local",
+        "Driver": "bridge",
+        "EnableIPv6": false,
+        "IPAM": {
+            "Driver": "default",
+            "Options": {},
+            "Config": [
+                {
+                    "Subnet": "192.168.0.0/16",
+                    "Gateway": "192.168.0.1"
+                }
+            ]
+        },
+        "Internal": false,
+        "Attachable": false,
+        "Ingress": false,
+        "ConfigFrom": {
+            "Network": ""
+        },
+        "ConfigOnly": false,
+        "Containers": {
+            "2b0607daa2b3941d83e338fe9d989d9944cc99e3be70140256988a6b78a5ecdf": {
+                "Name": "tomcat-net-02",
+                "EndpointID": "8e0fcd1593efe7fd04a106786cdd2cbe51463bf9261446095cc16e6880c2e739",
+                "MacAddress": "02:42:c0:a8:00:03",
+                "IPv4Address": "192.168.0.3/16",
+                "IPv6Address": ""
+            },
+            "90d310829339645bac5d88899f6a891a5887e58dd9fd4a70a3b991895ae1a135": {
+                "Name": "tomcat-net-01",
+                "EndpointID": "7497e729de39a96246ec56ea33faa85b150d36d4c0eb5f541f24e04f1089cddd",
+                "MacAddress": "02:42:c0:a8:00:02",
+                "IPv4Address": "192.168.0.2/16",
+                "IPv6Address": ""
+            }
+        },
+        "Options": {},
+        "Labels": {}
+    }
+]
+# 通过名称ping两个容器,发现是可以ping通的
+[root@zouma1 zouma]# docker exec -it tomcat-net-01 ping tomcat-net-02
+PING tomcat-net-02 (192.168.0.3) 56(84) bytes of data.
+64 bytes from tomcat-net-02.mynet (192.168.0.3): icmp_seq=1 ttl=64 time=0.091 ms
+64 bytes from tomcat-net-02.mynet (192.168.0.3): icmp_seq=2 ttl=64 time=0.078 ms
+64 bytes from tomcat-net-02.mynet (192.168.0.3): icmp_seq=3 ttl=64 time=0.082 ms
+64 bytes from tomcat-net-02.mynet (192.168.0.3): icmp_seq=4 ttl=64 time=0.082 ms
+```
+
+自定义网络已经维护好了对应的关系，推荐使用这种
+
+好处：
+
+不同的集群使不同的网络，保证集群是安全和健康的，比如redis集群和mysql集群
+
+### 网络连接
+
+```shell
+# 连接一个容器到网络
+docker network connect [OPTIONS] NETWORK CONTAINER
+# 可选项
+      --alias strings           Add network-scoped alias for the container
+      --driver-opt strings      driver options for the network
+      --ip string               IPv4 address (e.g., 172.30.100.104)
+      --ip6 string              IPv6 address (e.g., 2001:db8::33)
+      --link list               Add link to another container
+      --link-local-ip strings   Add a link-local address for the container
+# 测试，打通tomcat-03 mynet
+docker network connect mynet tomcat-03
+docker network inspect mynet
+# 查看信息后发现，mynet里面存在tomcat-03
+ "Containers": {
+            "2b0607daa2b3941d83e338fe9d989d9944cc99e3be70140256988a6b78a5ecdf": {
+                "Name": "tomcat-net-02",
+                "EndpointID": "8e0fcd1593efe7fd04a106786cdd2cbe51463bf9261446095cc16e6880c2e739",
+                "MacAddress": "02:42:c0:a8:00:03",
+                "IPv4Address": "192.168.0.3/16",
+                "IPv6Address": ""
+            },
+            "90d310829339645bac5d88899f6a891a5887e58dd9fd4a70a3b991895ae1a135": {
+                "Name": "tomcat-net-01",
+                "EndpointID": "7497e729de39a96246ec56ea33faa85b150d36d4c0eb5f541f24e04f1089cddd",
+                "MacAddress": "02:42:c0:a8:00:02",
+                "IPv4Address": "192.168.0.2/16",
+                "IPv6Address": ""
+            },
+            "c6c1c0eb955b0da558e77021e47756bb509c93c7c249f9832b890bc305aa241f": {
+                "Name": "tomcat-03",
+                "EndpointID": "054074528cead29c6fdc3891d772ef44428290f678d37353bbe0d06198817cd8",
+                "MacAddress": "02:42:c0:a8:00:04",
+                "IPv4Address": "192.168.0.4/16",
+                "IPv6Address": ""
+            }
+        },
+# 此时一个tomcat-03容器有两个ip
+```
+
