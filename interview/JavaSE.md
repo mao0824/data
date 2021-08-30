@@ -46,6 +46,33 @@ equals是Object的方法
 
 如果重写以后equals方法比较的是两个对象的属性值
 
+## &和&&的区别
+
+&运算符：逻辑与
+
+&&运算符：短路与
+
+1. &和&&在程序中最终的运算结果是完全一致的，只不过&&会存在短路现象，当&&运算符左边的表达式结果为false的时候，右边的表达式不执行，此时就发生了短路现象。&运算符不管左边的表达式是true还是false，右边的表达式一定执行。
+2. &运算符还可以使用在二进制位运算上，例如按位与。
+
+## String  str =  new  String("xyz"); 创建了几个对象？
+
+一个或者两个
+
+1. 如果String常量池中，已经创建了"xyz"，此时只创建了一个对象new String("xyz")
+2. 如果String常量池中，没有创建"xyz"，此时会创建两个对象，一个对象的值是"xyz"，另一个对象是str
+
+## java中break,continue,return 的区别？
+
+- break默认是跳出最里层的循环，也就是break所在的最近的那层循环
+- continue是终止本次循环，继续下次循环
+- return是结束当前方法或者将返回值返回给调用者
+
+## "" 和null的区别
+
+- " "是有地址但是里面的内容是空的
+- null是没有地址的
+
 ## 谈谈你对反射的理解
 
 **反射（Reflection）机制：**
@@ -149,3 +176,41 @@ ConcurrentHashMap引入了**分割(Segment)**，上面代码中的最后一行�
 
 1. ConcurrentHashMap对整个桶数组进行了分割分段(Segment)，然后在每一个分段上都用lock锁进行保护，相对于HashTable的syn关键字锁的粒度更精细了一些，并发性能更好，而HashMap没有锁机制，不是线程安全的。
 2. HashMap的键值对允许有null，但是ConCurrentHashMap都不允许。
+
+## HashSet和TreeSet的区别
+
+HashSet是采用Hash表来实现的，其中的元素没有按照顺序排序，add()、remove()以及contains()等方法都是复杂度为O(1)的方法
+
+TreeSet是采用树结构实现(红黑树算法)的。元素按照一定的顺序进行排列，但是add()、remove()以及contains()等方法都是复杂度O(log(n))的方法。它还提供一些方法来处理排序的set，比如first(),last(),headSet(),tailSet()等等。
+
+## String 和 String Builder 的区别
+
+共同点：:都是final类,不允许被继承
+
+String : 一个不可改变的字符序列，String为字符串常量，一旦定义，不可修改
+
+```java
+String str = "hello";
+str = "world"; //创建一个新的str对象，就得str=“hello”对象被回收
+
+//由final修饰
+private final char value[]; 
+```
+
+String Builder : 可以改变的字符序列，字符串变量，类似于字符串的缓冲区，可以直接对该对象进行修改，而不								进行创建和回收，效率更高。
+
+​						       可以通过append()、indert()进行字符串的操作。
+
+## String Buffer 和 String Builder 的区别
+
+共同点：
+
+- 都是final类,不允许被继承可以
+- 功能和方法完全是等价的
+- 都是字符串变量，字符串的缓冲区，即一个容器，里面装很多字符串并可以操作字符串
+
+不同点：
+
+- StringBuffer jdk1.0出现的，方法大都采用了 synchronized 关键字进行修饰，因此是线程安全的，但效率低
+- StringBuilder  jdk1.5出现的，线程不安全，效率高
+
