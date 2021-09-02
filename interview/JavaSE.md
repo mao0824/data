@@ -214,3 +214,38 @@ String Builder : 可以改变的字符序列，字符串变量，类似于字符
 - StringBuffer jdk1.0出现的，方法大都采用了 synchronized 关键字进行修饰，因此是线程安全的，但效率低
 - StringBuilder  jdk1.5出现的，线程不安全，效率高
 
+## 什么是Java序列化？如何实现Java序列化？
+
+序列化就是一种用来处理对象流的机制，所谓对象流也就是将对象的内容就行流化。可以对流化的对象进行读写操作，也可以将流化后的对象传输与网络之间。序列化是为了解决在对对象流进行读写操作时所引发的问题。
+
+把内存里面的这些对象给变成一连串的字节描述的过程。如: 文件保存
+
+序列化的实现：将需要被序列化的类实现Serializable 接口，该接口没有需要实现的方法，实现该接口只是为了标注该对象是可被序列化的，然后使用一个输出流（比如FileOutputStream）来构造一个ObjectOutputStream（对象流）对象，接着使用ObjectOutputStream对象的writeObject（Object obj）方法就可以将参数为obj的对象写出（即保存其状态），要恢复的话则用输入流。
+
+**注意：1、静态变量不会被序列化的，它可不在堆内存中，序列化只会序列化堆内存的数据**
+
+​            **2、transient 修饰的属性，是不会被序列化的**
+
+## Object中有哪些方法？
+
+1. protected Object clone（）---创建并返回此对象的一个副本
+
+2. boolean equals（Object obj）---指示某个其他对象是否与此对象“相等”
+
+3. protect void finalize()---当垃圾回收器确定不存在该对象的更多引用时，由对象的垃圾回收器调用此方法
+
+4. Class<？extends Object>getClass()---返回一个对象的运行时类
+
+5. int hasCode()---返回该对象的哈希码值
+
+6. void notify()---唤醒在此对象监视器上的等待的单个线程
+
+7. void notifyAll()---唤醒在此对象监视器上的等待的所有线程
+
+8. String toString()---返回该对象的字符串表示
+
+9. void wait()---导致当前线程等待，直到其他线程调用此对象的void notify()或者void notifyAll()方法。
+
+   void wait(long timeout)---导致当前线程等待，直到其他线程调用此对象的void notify()或者void notifyAll()方法，或者超过指定的时间
+
+   void wait(long timeout, int nanos)---导致当前的线程等待，直到其他线程调用此对象的 notify()
