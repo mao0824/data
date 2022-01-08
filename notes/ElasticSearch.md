@@ -33,7 +33,7 @@ plugins  插件
 
 ![](https://raw.githubusercontent.com/mao0824/pictureBed/master/home/ES%E5%90%AF%E5%8A%A8%E6%88%90%E5%8A%9F.png)
 
-启动测试：
+启动测试：’；；
 
 ```
 {
