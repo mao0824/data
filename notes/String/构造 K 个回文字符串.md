@@ -23,5 +23,5 @@ public static boolean check(String str){
 
 ### 思路:
 
-如果length(s) < k,直接返回false 。
+如果length(s) < k,直接返回false 。未完待续
 
