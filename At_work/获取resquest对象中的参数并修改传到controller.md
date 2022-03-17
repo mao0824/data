@@ -322,6 +322,8 @@ public String[] getParameterValues(String name) {
 
 ### 修改POST方法的参数
 
+注意：重写 getReader() 方法进行处理，因为在controller 使用@RequestBody 在反序列化到对象数据读取就是通过该方法读取，所以可以通过在这修改数据达到最终过滤数据的目的。
+
 ```java
 /**
  * 重写request,获取body数据的时候读取新的body
